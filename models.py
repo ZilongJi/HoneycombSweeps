@@ -1,73 +1,163 @@
-
 import jax
 import brainpy as bp
 import brainpy.math as bm
 
-class adaptiveCANN2D(bp.dyn.NeuDyn):
-  def __init__(self, length, tau=1., tauv=2, m0=1., k=8.1, a=0.5, A=10., J0=4.,
-               z_min=-bm.pi, z_max=bm.pi, name=None):
-    super(adaptiveCANN2D, self).__init__(size=(length, length), name=name)
+class PC_cell(bp.DynamicalSystem):
+    def __init__(
+        self,
+        num=100,
+        tau=10.0,
+        tauv=100.0,
+        m0=10.0,
+        k=1.0,
+        a=0.08,
+        goal_a = 0.08, 
+        A=10.0,
+        J0=4.0,
+        goal_J0 = 500.,
+        z_min=0,
+        z_max=1,
+        goal_loc=None,
+    ):
 
-    # parameters
-    self.length = length
-    self.tau = tau  # The synaptic time constant
-    self.tauv = tauv  # The time constant of the adaptation
-    self.m = tau/tauv*m0  # The adaptation strength
-    self.k = k  # Degree of the rescaled inhibition
-    self.a = a  # Half-width of the range of excitatory connections
-    self.A = A  # Magnitude of the external input
-    self.J0 = J0  # maximum connection value
+        super(PC_cell, self).__init__()
 
-    # feature space
-    self.z_min = z_min
-    self.z_max = z_max
-    self.z_range = z_max - z_min
-    self.x = bm.linspace(z_min, z_max, length)  # The encoded feature values
-    self.rho = length / self.z_range  # The neural density
-    self.dx = self.z_range / length  # The stimulus density
+        # Hyper-parameters
+        self.num = num  # number of neurons at each dimension
+        self.tau = tau  # The synaptic time constant
+        self.tauv = tauv  # The time constant of firign rate adaptation
+        self.m = tau / tauv * m0  # The adaptation strength
+        self.k = k  # Degree of the rescaled inhibition
+        self.a = a  # Half-width of the range of excitatory connections
+        self.A = A  # Magnitude of the external input
+        self.J0 = J0  # maximum connection value
+        self.goal_J0 = goal_J0
+        self.goal_a = goal_a
 
-    # The connections
-    self.conn_mat = self.make_conn()
+        # feature space
+        self.z_range = z_max - z_min
+        linspace_z = bm.linspace(z_min, z_max, num + 1)
+        self.z = linspace_z[:-1]
+        x, y = bm.meshgrid(self.z, self.z)  # x y index
+        self.value_index = bm.stack([x.flatten(), y.flatten()]).T
 
-    # variables
-    self.r = bm.Variable(bm.zeros((length, length)))
-    self.u = bm.Variable(bm.zeros((length, length)))
-    self.v = bm.Variable(bm.zeros((length, length)))
-    self.input = bm.Variable(bm.zeros((length, length)))
+        # Synaptic connections
+        self.conn_mat = self.make_conn()
+        
+        if goal_loc is not None:
+            self.goal_loc = bm.array(goal_loc).reshape(1,2)
+            self.gd_conn = self.make_gd_conn(self.goal_loc)  
+            self.conn_mat = self.conn_mat + self.gd_conn
 
-  def dist(self, d):
-    v_size = bm.asarray([self.z_range, self.z_range])
-    return bm.where(d > v_size / 2, v_size - d, d)
+        # Define variables we want to update
+        self.r = bm.Variable(bm.zeros((num, num)))  # firing rate of all PCs
+        self.u = bm.Variable(bm.zeros((num, num)))  # presynaptic input of all PCs
+        self.v = bm.Variable(bm.zeros((num, num)))  # firing rate adaptation of all PCs
+        self.center = bm.Variable(bm.zeros(2))  # center of the bump
+        self.loc_input = bm.Variable(
+            bm.zeros((num, num))
+        )  # Location dependent sensory input to the networks
 
-  def make_conn(self):
-    x1, x2 = bm.meshgrid(self.x, self.x)
-    value = bm.stack([x1.flatten(), x2.flatten()]).T
+        # define the integrator
+        self.integral = bp.odeint(method="exp_euler", f=self.derivative)
 
-    @jax.vmap
-    def get_J(v):
-      d = self.dist(bm.abs(v - value))
-      d = bm.linalg.norm(d, axis=1)
-      # d = d.reshape((self.length, self.length))
-      Jxx = self.J0 * bm.exp(-0.5 * bm.square(d / self.a)) / (bm.sqrt(2 * bm.pi) * self.a)
-      return Jxx
+    @property
+    def derivative(self):
+        du = lambda u, t, Irec: (-u + Irec + self.loc_input - self.v) / self.tau
+        dv = lambda v, t: (-v + self.m * self.u) / self.tauv
+        return bp.JointEq([du, dv])
 
-    return get_J(value)
+    def dist(self, d):
+        v_size = bm.asarray([self.z_range, self.z_range])
+        return bm.where(d > v_size / 2, v_size - d, d)
 
-  def get_stimulus_by_pos(self, pos):
-    assert bm.size(pos) == 2
-    x1, x2 = bm.meshgrid(self.x, self.x)
-    value = bm.stack([x1.flatten(), x2.flatten()]).T
-    d = self.dist(bm.abs(bm.asarray(pos) - value))
-    d = bm.linalg.norm(d, axis=1)
-    d = d.reshape((self.length, self.length))
-    return self.A * bm.exp(-0.25 * bm.square(d / self.a))
+    def make_conn(self):
+        @jax.vmap
+        def get_J(v):
+            d = self.dist(bm.abs(v - self.value_index))
+            d = bm.linalg.norm(d, axis=1)
+            # d = d.reshape((self.length, self.length))
+            Jxx = (
+                self.J0
+                * bm.exp(-0.5 * bm.square(d / self.a))
+                / (bm.sqrt(2 * bm.pi) * self.a)
+            )
+            return Jxx
 
-  def update(self):
-    r1 = bm.square(self.u)
-    r2 = 1.0 + self.k * bm.sum(r1)
-    self.r.value = r1 / r2
-    interaction = (self.r.flatten() @ self.conn_mat).reshape((self.length, self.length))
-    self.u.value = self.u + (-self.u + self.input + interaction - self.v) / self.tau * bp.share['dt']
-    self.u = bm.where(self.u>0, self.u, 0)
-    self.v.value = self.v + (-self.v + self.m * self.u) / self.tauv * bp.share['dt']
-    self.input[:] = 0.
+        return get_J(self.value_index)
+
+    def make_gd_conn(self, goal_loc):
+        #add a goal directed connection to the neurons at the goal location with a Gaussian profile
+        @jax.vmap
+        def get_J(v):
+            d = self.dist(bm.abs(v - goal_loc))
+            d = bm.linalg.norm(d, axis=1)
+            Jxx = (
+                self.goal_J0
+                * bm.exp(-0.5 * bm.square(d / self.goal_a))
+                / (bm.sqrt(2 * bm.pi) * self.goal_a)
+            )
+            return Jxx
+        
+        conn_vec = get_J(self.value_index)
+        
+        '''
+        #asymmetric connection of a neuron
+        #find the cloest index in self.value_grid to the goal location
+        distances = bm.linalg.norm(self.goal_loc - self.value_index, axis=1)
+        closest_index = bm.argmin(distances)
+        
+        #geterante a zeros matrix the same size as self.conn_mat, and out only the closest_index column as 
+        goal_conn_mat = bm.zeros_like(self.conn_mat)
+        goal_conn_mat[:,closest_index] = conn_vec.reshape(-1,)
+        '''
+        
+        #asymmetric connection of multiple neurons
+        d = self.dist(bm.abs(self.goal_loc - self.value_index))
+        distances = bm.linalg.norm(d, axis=1)
+        #rank the distances from low to high and get the index
+        closest_index = bm.argsort(distances)
+        goal_conn_mat = bm.zeros_like(self.conn_mat)
+        for i, index in enumerate(closest_index):
+            # if i < 5000:
+            if True:
+                rank_dist = distances[index]
+                alpha = 1 - rank_dist / (bm.max(distances)-bm.min(distances))
+                goal_conn_mat[:,index] = conn_vec.reshape(-1,) * alpha 
+        
+        return goal_conn_mat
+
+    def location_input(self, animal_loc, theta_mod):
+        # return bump input (same dim as neuroal space) from a x-y location
+
+        assert bm.size(animal_loc) == 2
+
+        d = self.dist(bm.abs(bm.asarray(animal_loc) - self.value_index))
+        d = bm.linalg.norm(d, axis=1)
+        d = d.reshape((self.num, self.num))
+        # Gaussian bump input
+        input_ = self.A * bm.exp(-0.25 * bm.square(d / self.a))
+
+        # further theta modulation
+        input_ = input_ * theta_mod
+
+        return input_
+
+    def update(self, Animal_location, ThetaModulator):
+
+        self.loc_input = self.location_input(Animal_location, ThetaModulator)
+        
+        Irec = bm.matmul(self.conn_mat, self.r.flatten()).reshape((self.num, self.num))
+
+        # update the system
+        u, v = self.integral(self.u, self.v, None, Irec)
+
+        self.u.value = bm.where(u > 0, u, 0)
+        self.v.value = v
+        r1 = bm.square(self.u)
+        r2 = 1.0 + self.k * bm.sum(r1)
+        self.r.value = r1 / r2
+        
+        #get the center of the bump from self.r which is num x num matrix
+        self.center[1], self.center[0] = bm.unravel_index(bm.argmax(self.r.value), [self.num, self.num])
+        
