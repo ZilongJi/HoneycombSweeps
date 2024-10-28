@@ -142,18 +142,20 @@ def get_tuningMap(activity, positions, cellindex_x, cellindex_y, shift,
         #Gaussian smoothing the map
         map = gaussian_filter(map, sigma=2)
     
-    #get the quantity of the rate map
-    map_criteria = {}
-    #first, firing area
-    map_criteria['firing_area'] = get_firing_area(map, firing_rate_thres)
-    #second, patchiness
-    map_criteria['patchiness'] = get_patchiness(map)
-    #third, spatial coherence
-    map_criteria['spatial_coherence'] = get_spatial_cohenrence(map)
-    #fourth, spatial information content
-    map_criteria['spatial_information_content'] = spatial_information_content(map, FR_In_Position, Time_In_Position)
+    # #get the quantity of the rate map
+    # map_criteria = {}
+    # #first, firing area
+    # map_criteria['firing_area'] = get_firing_area(map, firing_rate_thres)
+    # #second, patchiness
+    # map_criteria['patchiness'] = get_patchiness(map)
+    # #third, spatial coherence
+    # map_criteria['spatial_coherence'] = get_spatial_cohenrence(map)
+    # #fourth, spatial information content
+    # map_criteria['spatial_information_content'] = spatial_information_content(map, FR_In_Position, Time_In_Position)
     
-    return map, map_criteria
+    # return map, map_criteria
+    
+    return map
 
 
 def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, n_step=10, goal_loc=None, save_path='./animations/', filename_prefix='GD_adaptation_'):
