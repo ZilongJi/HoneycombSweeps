@@ -158,7 +158,7 @@ def get_tuningMap(activity, positions, cellindex_x, cellindex_y, shift,
     return map
 
 
-def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, n_step=10, goal_loc=None, save_path='./animations/', filename_prefix='GD_adaptation_'):
+def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step=10, goal_loc=None, save_path='./animations/', filename_prefix='GD_adaptation_'):
     """
     Creates an animated heatmap with position and speed information.
 
@@ -178,8 +178,8 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, n_step=10, g
     fig, ax = plt.subplots(figsize=(3, 3), dpi=100)
 
     # Rescale and sample position data
-    position_x_int = (Position[:, 0] * num).astype(int)
-    position_y_int = (Position[:, 1] * num).astype(int)
+    position_x_int = (Position[:, 0]/zmax * num).astype(int)
+    position_y_int = (Position[:, 1]/zmax * num).astype(int)
     
     start = 0
     end = int(duration + 1)
@@ -187,7 +187,7 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, n_step=10, g
     position_x_int = position_x_int[start:end:n_step]
     position_y_int = position_y_int[start:end:n_step]
     if goal_loc is not None:
-        goal_loc_int = (np.array(goal_loc) * num).astype(int)
+        goal_loc_int = (np.array(goal_loc)/zmax * num).astype(int)
 
     # Set up the fixed ticks and labels
     ax.set_xticks([0, 50, 99])
@@ -196,7 +196,7 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, n_step=10, g
     ax.set_yticklabels([0, 0.5, 1])
 
     # Plot the static trajectory as a grey line
-    ax.plot(Position[:, 0] * num, Position[:, 1] * num, color='grey', linewidth=1, label='Trajectory')
+    ax.plot(Position[:, 0]/zmax * num, Position[:, 1]/zmax * num, color='grey', linewidth=1, label='Trajectory')
 
     # Initialize the elements to update
     position_marker = ax.scatter(position_x_int[0], position_y_int[0], color='#009FB9', s=50)

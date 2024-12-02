@@ -7,6 +7,8 @@ __pycache__/
 
 /trace/
 
+/animations/
+
 # C extensions
 *.so
 
