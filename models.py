@@ -315,6 +315,7 @@ class PC_cell_topdown_asym(bp.DynamicalSystem):
         A=10.0,
         J0=4.0,
         goal_a=0.5,
+        goal_b=0.5,
         goal_A=1.0,
         asym_J0 = 2,
         asym_a = 0.5,
@@ -325,6 +326,7 @@ class PC_cell_topdown_asym(bp.DynamicalSystem):
         goal_loc=(0.75, 0.75),
         topdown=False,
         asymmetry=False,
+        tdstyle='Gaussian'
     ):
 
         super(PC_cell_topdown_asym, self).__init__()
@@ -342,7 +344,9 @@ class PC_cell_topdown_asym(bp.DynamicalSystem):
         self.rec_noise = rec_noise #the noise level of the recurrent connections
         self.goal_loc = goal_loc #the location of the goal
         self.goal_a = goal_a #the half-width of the range of top down connections from the reward cell
+        self.goal_b = goal_b
         self.goal_A = goal_A #the magnitude of the top down input
+        self.tdstyle = tdstyle
         
         self.asym_J0 = asym_J0
         self.sym_a = asym_a
@@ -451,15 +455,19 @@ class PC_cell_topdown_asym(bp.DynamicalSystem):
 
         return input_
 
-    def topdown_input(self, Topdown_mod):
+    def topdown_input(self, Topdown_mod, tdstyle='Gaussian'):
         # return bump input (same dim as neuroal space) from a x-y location
         assert bm.size(self.goal_loc) == 2
 
         d = self.dist(bm.abs(bm.asarray(self.goal_loc) - self.value_index))
         d = bm.linalg.norm(d, axis=1)
         d = d.reshape((self.num, self.num))
-        # Gaussian bump input
-        input_ = self.goal_A * bm.exp(-0.25 * bm.square(d / self.goal_a))
+        if tdstyle == 'Gaussian':
+            # Gaussian bump input
+            input_ = self.goal_A * bm.exp(-0.25 * bm.square(d / self.goal_a))
+        elif tdstyle == 'linear':
+            # linear bump input (not Gaussian), which just decay with the distance
+            input_ = self.goal_A * (1 - d / bm.max(d)*self.goal_b)
 
         # further theta modulation
         input_ = input_ * Topdown_mod
@@ -478,7 +486,7 @@ class PC_cell_topdown_asym(bp.DynamicalSystem):
         self.loc_input = self.location_input(Animal_location, ThetaModulator_BU)
         
         if self.topdown: #top down control
-            self.td_input = self.topdown_input(Topdown_mod)
+            self.td_input = self.topdown_input(Topdown_mod, tdstyle=self.tdstyle)
             self.total_input = self.loc_input + self.td_input
         else:
             self.total_input = self.loc_input
