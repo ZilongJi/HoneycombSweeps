@@ -158,7 +158,7 @@ def get_tuningMap(activity, positions, cellindex_x, cellindex_y, shift,
     return map
 
 
-def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step=10, goal_loc=None, save_path='./animations/', filename_prefix='GD_adaptation_'):
+def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step=10, goal_loc=None, save_path='./animations/', filename_prefix='GD_adaptation_', dpi=100):
     """
     Creates an animated heatmap with position and speed information.
 
@@ -175,7 +175,7 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step
     - filename_prefix: Prefix for the filename (default is 'GD_adaptation_').
     """
     # Initialize plot
-    fig, ax = plt.subplots(figsize=(3, 3), dpi=100)
+    fig, ax = plt.subplots(figsize=(3, 3.2), dpi=dpi)
 
     # Rescale and sample position data
     position_x_int = (Position[:, 0]/zmax * num).astype(int)
@@ -190,10 +190,16 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step
         goal_loc_int = (np.array(goal_loc)/zmax * num).astype(int)
 
     # Set up the fixed ticks and labels
-    ax.set_xticks([0, 50, 99])
-    ax.set_xticklabels([0, 0.5, 1])
-    ax.set_yticks([0, 50, 99])
-    ax.set_yticklabels([0, 0.5, 1])
+    ax.set_xticks([0, num//2, num-1])
+    ax.set_xticklabels([0, 1, 2])
+    ax.set_yticks([0, num//2, num-1])
+    ax.set_yticklabels([0, 1, 2])
+    ax.set_xlabel('X position (m)')
+    ax.set_ylabel('Y position (m)')
+    #equal aspect ratio
+    ax.set_aspect('equal')
+    #tight layout
+    # plt.tight_layout()
 
     # Plot the static trajectory as a grey line
     ax.plot(Position[:, 0]/zmax * num, Position[:, 1]/zmax * num, color='grey', linewidth=1, label='Trajectory')
@@ -221,7 +227,7 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step
         return position_marker, heatmap, title
 
     # Create animation
-    ani = FuncAnimation(fig, update, frames=len(pc_activity_sampled), interval=100)
+    ani = FuncAnimation(fig, update, frames=len(pc_activity_sampled), interval=10)
 
     # Define filename and save animation
     save_filename = f"{save_path}{filename_prefix}{m0}.gif"
@@ -229,3 +235,13 @@ def animate_sweeps(Position, pc_activity, num, duration, Speed, m0, zmax, n_step
     
     print(f'Animation saved to {save_filename}')
     plt.close(fig)  # Close the figure to free memory
+    
+    # # Create animation
+    # ani = FuncAnimation(fig, update, frames=len(pc_activity_sampled), interval=5)
+
+    # # Define filename and save animation as MP4
+    # save_filename = f"{save_path}{filename_prefix}{m0}.mp4"
+    # ani.save(save_filename, writer='ffmpeg', fps=100, codec="mpeg4")
+    
+    # print(f'Animation saved to {save_filename}')
+    # plt.close(fig)  # Close the figure to free memory
