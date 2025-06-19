@@ -521,7 +521,6 @@ class HD_cell_L1(bp.DynamicalSystem):
         z_max=bm.pi,
         goal_a=0.5,
         goal_A=1.0,
-        goal_dir=0,
         topdown=False,
     ):
         super(HD_cell_L1, self).__init__()
@@ -546,7 +545,7 @@ class HD_cell_L1(bp.DynamicalSystem):
         self.x = x1[0:-1]
         
         self.topdown = topdown #if turn on the topdown input
-        self.goal_dir = goal_dir #direction to the goal
+        # self.goal_dir = goal_dir #direction to the goal
         self.goal_a = goal_a #the half-width of the range of top down connections from the reward cell
         self.goal_A = goal_A #the magnitude of the top down input       
 
@@ -616,9 +615,9 @@ class HD_cell_L1(bp.DynamicalSystem):
         self.v.value = bm.Variable(bm.zeros(self.num))
         self.center.value = bm.Variable(bm.zeros(1,) + HD_truth)
 
-    def update(self, HD, ThetaInput, Topdown_mod):
+    def update(self, HD, ThetaInput, Topdown_mod, Dir2Goal):
         
-        
+        self.goal_dir = Dir2Goal
         self.center = self.get_center(r=self.r, x=self.x)
         Iext = ThetaInput * self.input_HD(HD)
         
