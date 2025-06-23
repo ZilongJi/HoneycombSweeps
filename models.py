@@ -619,13 +619,13 @@ class HD_cell_L1(bp.DynamicalSystem):
         
         self.goal_dir = Dir2Goal
         self.center = self.get_center(r=self.r, x=self.x)
-        Iext = ThetaInput * self.input_HD(HD)
+        Iext = self.input_HD(HD)
         
         if self.topdown: #top down control
             self.td_input = self.topdown_input(Topdown_mod)
-            self.total_input = Iext + self.td_input
+            self.total_input = Iext + ThetaInput * self.td_input
         else:
-            self.total_input = Iext
+            self.total_input = ThetaInput * Iext
         
         # Calculate input
         r_fft = bm.fft.fft(self.r)
@@ -651,6 +651,7 @@ class PC_cell_L2(bp.DynamicalSystem):
         mbar=75.0,
         a=0.5,
         A=1.0,
+        td_A=1.0,
         J0=5.0,
         k=1,
         g = 1000,
@@ -671,6 +672,7 @@ class PC_cell_L2(bp.DynamicalSystem):
         self.k = k  # Degree of the rescaled inhibition
         self.a = a  # Half-width of the range of excitatory connections
         self.A = A  # Magnitude of the external input
+        self.td_A = td_A # Magnitude of the topdown input
         self.g = g
         self.J0 = J0/g  # maximum connection value
         self.m = mbar * tau / tau_v
@@ -749,19 +751,20 @@ class PC_cell_L2(bp.DynamicalSystem):
         input = bm.zeros([num_hd, self.num])
         for i in range(num_hd):
             d = self.dist(bm.asarray(self.center_conjG[:,i]) - self.value_grid)
-            input[i] = self.A * bm.exp(-0.25 * bm.square(d / self.a))
+            input[i] = self.td_A * bm.exp(-0.25 * bm.square(d / self.a))
             
         max_hd = bm.max(HD_activity)
-        hd_weight = bm.where(HD_activity>max_hd/3, HD_activity, 0)
+        hd_weight = bm.where(HD_activity>0.99*max_hd, HD_activity, 0)
         hd_weight = hd_weight/bm.sum(hd_weight)
 
-        total_input = bm.matmul(input.transpose(), hd_weight).reshape(-1,) * ThetaModulator
+        topdown_input = bm.matmul(input.transpose(), hd_weight).reshape(-1,) * ThetaModulator
         
         #add animal location as a sensory inout which do not receive theta modulation
         loc_ = self.Postophase(Animal_location)
         d = self.dist(bm.asarray(loc_) - self.value_grid)
         loc_input = self.A * bm.exp(-0.25 * bm.square(d / self.a))
-        total_input = total_input + loc_input
+        
+        total_input = topdown_input + loc_input
         
         return total_input
 
@@ -775,7 +778,7 @@ class PC_cell_L2(bp.DynamicalSystem):
         self.center_bump[0] = bm.angle(bm.sum(exppos_x * r))
         self.center_bump[1] = bm.angle(bm.sum(exppos_y * r))
         
-        #get the center of the moddle layer input (offset input)
+        #get the center of the middle layer input (offset input)
         self.center_I[0] = bm.angle(bm.sum(exppos_x * self.input))
         self.center_I[1] = bm.angle(bm.sum(exppos_y * self.input))
 
