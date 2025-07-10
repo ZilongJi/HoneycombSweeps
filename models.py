@@ -743,8 +743,8 @@ class PC_cell_L2(bp.DynamicalSystem):
         num_hd = self.num_hd
         hd = bm.linspace(-bm.pi,bm.pi,num_hd) 
         # each head-direction cell corresponds to a group of Conjunctive grid cells, which in turn projects to pure grid cells with assymetric connections determined by offset(hd)
-        lagvec = -bm.array([bm.cos(HD_truth), bm.sin(HD_truth)]) * self.Phase_Offset * 1.4
-        offset = bm.array([bm.cos(hd), bm.sin(hd)]) * self.Phase_Offset + 0*lagvec.reshape(-1,1)
+        lagvec = -bm.array([bm.cos(HD_truth), bm.sin(HD_truth)]) * self.Phase_Offset * 1.4 #1.4
+        offset = bm.array([bm.cos(hd), bm.sin(hd)]) * self.Phase_Offset + lagvec.reshape(-1,1)
         self.center_conjG = self.Postophase(
             Animal_location.reshape([-1,1]) + offset.reshape(-1,num_hd)
         )  # Ideal phase using mapping function

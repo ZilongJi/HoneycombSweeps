@@ -106,8 +106,8 @@ def spatial_information_content(map, FR_In_Position, Time_In_Position):
     return np.nansum(SIC)
 
     
-def get_tuningMap(activity, positions, cellindex_x, cellindex_y, shift, 
-                 filter=False, firing_rate_thres=0.05, samples_per_sec=10, dim=40):
+def get_tuningMap(activity, positions, cellindex_x, cellindex_y, 
+                 filter=False, samples_per_sec=1000, dim=40):
     '''
     Get the tuning map of a cell
     Input:
@@ -120,8 +120,6 @@ def get_tuningMap(activity, positions, cellindex_x, cellindex_y, shift,
     '''
     
     activity_4_cell_i = activity[:, cellindex_x, cellindex_y]
-    
-    activity_4_cell_i = np.roll(activity_4_cell_i, shift) #positive shift means shift to the right!!
     
     #position in bins
     position_x = positions[:,0]; position_x = (position_x*dim).astype(int)
@@ -141,19 +139,7 @@ def get_tuningMap(activity, positions, cellindex_x, cellindex_y, shift,
     if filter is True:
         #Gaussian smoothing the map
         map = gaussian_filter(map, sigma=2)
-    
-    # #get the quantity of the rate map
-    # map_criteria = {}
-    # #first, firing area
-    # map_criteria['firing_area'] = get_firing_area(map, firing_rate_thres)
-    # #second, patchiness
-    # map_criteria['patchiness'] = get_patchiness(map)
-    # #third, spatial coherence
-    # map_criteria['spatial_coherence'] = get_spatial_cohenrence(map)
-    # #fourth, spatial information content
-    # map_criteria['spatial_information_content'] = spatial_information_content(map, FR_In_Position, Time_In_Position)
-    
-    # return map, map_criteria
+
     
     return map
 
