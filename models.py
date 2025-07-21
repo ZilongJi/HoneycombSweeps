@@ -505,6 +505,7 @@ class PC_cell_topdown_asym(bp.DynamicalSystem):
         #get the center of the bump from self.r which is num x num matrix
         self.center[1], self.center[0] = bm.unravel_index(bm.argmax(self.r.value), [self.num, self.num])
         
+        
 class HD_cell_L1(bp.DynamicalSystem):
     def __init__(
         self,
@@ -623,7 +624,8 @@ class HD_cell_L1(bp.DynamicalSystem):
         
         if self.topdown: #top down control
             self.td_input = self.topdown_input(Topdown_mod)
-            self.total_input = Iext + ThetaInput * self.td_input
+            # self.total_input = Iext + ThetaInput * self.td_input
+            self.total_input = ThetaInput * Iext + self.td_input
         else:
             self.total_input = ThetaInput * Iext
         
