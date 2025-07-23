@@ -124,3 +124,38 @@ def compute_smoothed_movement_direction(
     movement_direction = (movement_direction + 360) % 360
     
     return np.deg2rad(movement_direction)
+
+
+def load_running_gaps_mat(
+    load_dir: str, 
+    trial_types: List[str] = ['hComb', 'openF'],
+):
+    """
+    Load .mat file with running gap (low theta power) information
+    
+    Parameters
+    ----------
+    load_dir: str
+        loading directory
+    trial_types: List[str]
+        trials to look at
+    """
+    if not os.path.exists(load_dir):
+        raise ValueError
+    mat = loadmat(load_dir)
+    data = mat['runningGaps'][0, 0]
+    
+    num_trial_types = len(data)
+    assert len(trial_types) == num_trial_types
+    d = {}
+    
+    for i in range(len(trial_types)):
+        d[trial_types[i]] = {}
+        num_trials = len(data[i][0])
+        all_attributes = np.array(list(np.dtype(data[i].dtype).names))
+        for j in range(len(all_attributes)):
+            if all_attributes[j] not in d[trial_types[i]]:
+                d[trial_types[i]][all_attributes[j]] = []
+            for k in range(num_trials):
+                d[trial_types[i]][all_attributes[j]].append(data[i][0, k][j].reshape(-1, 2))
+    return d

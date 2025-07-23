@@ -575,9 +575,9 @@ def plot_rays(
     ax.plot(
         center[0], 
         center[1], 
-        marker="*", 
+        marker="^", 
         color="white", 
-        markersize=15, 
+        markersize=20, 
         markeredgecolor="black",
         markeredgewidth=1.0, 
     )
