@@ -87,47 +87,6 @@ def compute_smoothed_speed(
     return speed_smooth
 
 
-# def compute_smoothed_movement_direction(
-#     pos: np.ndarray, 
-#     samples: np.ndarray, 
-#     raw_freq: float, 
-#     smoothing_window: int = 5, 
-# ):
-#     # return smoothed movement directions (in radians)
-#     pos_x, pos_y = pos[:, 0], pos[:, 1]
-#     ts = samples[:, 0] / raw_freq
-    
-#     dx = np.diff(pos_x)
-#     dy = np.diff(pos_y)
-#     dt = np.diff(ts)
-
-#     vx = dx/dt
-#     vy = dy/dt
-
-#     # Smooth velocities
-#     kernel = np.ones(smoothing_window)/smoothing_window
-#     vx_smooth = np.convolve(vx, kernel, mode='same')
-#     vy_smooth = np.convolve(vy, kernel, mode='same')
-
-#     # Pad first element
-#     vx_smooth = np.concatenate(([vx_smooth[0]], vx_smooth))
-#     vy_smooth = np.concatenate(([vy_smooth[0]], vy_smooth))
-
-#     # Compute speed and heading
-#     speed = np.sqrt(vx_smooth**2 + vy_smooth**2)
-#     movement_direction = np.rad2deg(np.arctan2(vy_smooth, vx_smooth))
-    
-#     movement_direction = (np.arctan2(vy_smooth, vx_smooth) + np.pi) % (2 * np.pi) - np.pi
-
-#     # Set heading to NaN when speed is too low
-#     # movement_direction[speed < min_speed] = np.nan
-
-#     # Convert to [0, 360) range
-#     movement_direction = (movement_direction + 360) % 360
-    
-#     return np.deg2rad(movement_direction)
-
-
 def compute_smoothed_movement_direction(
     pos: np.ndarray, 
     samples: np.ndarray, 
@@ -153,7 +112,50 @@ def compute_smoothed_movement_direction(
     # Pad first element
     vx_smooth = np.concatenate(([vx_smooth[0]], vx_smooth))
     vy_smooth = np.concatenate(([vy_smooth[0]], vy_smooth))
+
+    # Compute speed and heading
+    speed = np.sqrt(vx_smooth**2 + vy_smooth**2)
+    movement_direction = np.rad2deg(np.arctan2(vy_smooth, vx_smooth))
+
+    # Set heading to NaN when speed is too low
+    # movement_direction[speed < min_speed] = np.nan
+
+    # Convert to [0, 360) range
+    movement_direction = (movement_direction + 360) % 360
     
-    movement_direction = (np.arctan2(vy_smooth, vx_smooth) + np.pi) % (2 * np.pi) - np.pi
+    return np.deg2rad(movement_direction)
+
+
+def load_running_gaps_mat(
+    load_dir: str, 
+    trial_types: List[str] = ['hComb', 'openF'],
+):
+    """
+    Load .mat file with running gap (low theta power) information
     
-    return movement_direction
+    Parameters
+    ----------
+    load_dir: str
+        loading directory
+    trial_types: List[str]
+        trials to look at
+    """
+    if not os.path.exists(load_dir):
+        raise ValueError
+    mat = loadmat(load_dir)
+    data = mat['runningGaps'][0, 0]
+    
+    num_trial_types = len(data)
+    assert len(trial_types) == num_trial_types
+    d = {}
+    
+    for i in range(len(trial_types)):
+        d[trial_types[i]] = {}
+        num_trials = len(data[i][0])
+        all_attributes = np.array(list(np.dtype(data[i].dtype).names))
+        for j in range(len(all_attributes)):
+            if all_attributes[j] not in d[trial_types[i]]:
+                d[trial_types[i]][all_attributes[j]] = []
+            for k in range(num_trials):
+                d[trial_types[i]][all_attributes[j]].append(data[i][0, k][j].reshape(-1, 2))
+    return d
