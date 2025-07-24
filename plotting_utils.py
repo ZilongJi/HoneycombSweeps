@@ -24,6 +24,7 @@ def plot_circular_histogram(
     smooth_window: int = 0, 
     alpha: float = 0.7, 
     show_xlabels: bool = True, 
+    barcolor: Optional[str] = None, 
 ):
     """
     Plot a circular histogram of angles on a polar axis.
@@ -52,6 +53,8 @@ def plot_circular_histogram(
             'text': 'gray',          # Nearly black for clear text
         }
     COLORS = colors
+    if barcolor is not None:
+        COLORS["bars"] = barcolor
     
     # Wrap angles to [-pi, pi]
     angles = (angles + np.pi) % (2*np.pi) - np.pi

@@ -394,8 +394,6 @@ def run_model(
     print("Simulation completed.")
     
     return (
-        HD_net, 
-        PC_net,
         animal_centre_all,
         animal_head_loc_all,
         hd_all,
