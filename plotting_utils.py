@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, Tuple, List
 import numpy as np
 from scipy.interpolate import splprep, splev
-from scipy.ndimage import gaussian_filter1d
+from scipy.ndimage import gaussian_filter1d, gaussian_filter
 from scipy import stats
 
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.patches import Wedge
 from matplotlib.colors import Normalize
 from matplotlib.cm import get_cmap
+import matplotlib.gridspec as gridspec
 
 
 def plot_circular_histogram(
@@ -287,6 +288,7 @@ def plot_expected_theta_sweep(
     fontsize: int = 20, 
     use_smooth_trajectories: bool = True, 
     plot_scalar_bar: bool = True, 
+    centre=np.array([0.0, 0.0]), 
 ):
     if ax is None:
         ax = plt.gca()
@@ -306,7 +308,7 @@ def plot_expected_theta_sweep(
         )
     
     if rays:
-        plot_rays(center=np.array([0.0, 0]), radius=radius, ax=ax, alpha=alpha)
+        plot_rays(center=centre, radius=radius, ax=ax, alpha=alpha)
     
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
@@ -779,3 +781,132 @@ def compute_mann_whitney_effect_size(data1, data2, alternative="two-sided"):
     r = 1 - (2 * u_stat) / (n1 * n2)
     
     return r, u_stat, p_val
+
+
+def plot_phase_precession_wrt_nd(
+    SpikePhase_decreasing, 
+    SpikePhase_increasing, 
+    Dist2G_decreasing, 
+    Dist2G_increasing, 
+    phi_decreasing, 
+    slope_decreasing, 
+    R_decreasing, 
+    phi_increasing, 
+    slope_increasing, 
+    R_increasing, 
+    n_bins: int = 120, 
+    fontsize: int = 20, 
+):
+    fig = plt.figure(figsize=(12.5, 5), dpi=300)
+    gs = gridspec.GridSpec(1, 2)
+
+    ax = plt.subplot(gs[0])
+
+    # Wrap phase by duplicating with +2π to handle circularity
+    SpikePhase_wrapped = np.concatenate([SpikePhase_decreasing, SpikePhase_decreasing + 2 * np.pi, SpikePhase_decreasing + 4*np.pi]) 
+    Dist2G_wrapped = np.concatenate([Dist2G_decreasing, Dist2G_decreasing, Dist2G_decreasing])
+    # Compute 2D histogram
+    heatmap, xedges, yedges = np.histogram2d(Dist2G_wrapped, SpikePhase_wrapped, bins=[n_bins, n_bins])
+    # Smooth with Gaussian filter
+    heatmap_smooth = gaussian_filter(heatmap, sigma=4)
+
+    sum_heatmap = np.sum(heatmap_smooth, axis=1)
+    valid_x_indices = sum_heatmap > 0.5 * np.max(sum_heatmap)
+    # Apply column filter
+    heatmap_smooth_4_plot = heatmap_smooth[valid_x_indices, :]
+
+    # Adjust xedges and X accordingly
+    xedges_filtered = xedges[:-1][valid_x_indices]  # remove last bin edge, select valid
+    xedges_filtered = np.append(xedges_filtered, xedges_filtered[-1] + np.diff(xedges).mean())  # match dimension
+
+    # Create matching meshgrid
+    X, Y = np.meshgrid(xedges_filtered, yedges)
+
+    # Plot
+    pcm = ax.pcolormesh(X, Y, heatmap_smooth_4_plot.T, shading='auto', cmap='jet')
+
+    #!!!! flip x axis with small values on the right and large values on the left
+    # Flip the x-axis
+    ax.invert_xaxis()
+
+    width = xedges_filtered.max() - xedges_filtered.min()
+    xmin = xedges_filtered.min() + 0.0 * width
+    xmax = xedges_filtered.max() - 0.0 * width
+    # ax.set_xlim(xmin, xmax)
+    ax.set_xticks([xmin, xmax])
+    ax.set_xticklabels(['Close\nto\ngoal', 'Far\nfrom\ngoal'], fontsize=fontsize)
+
+    ax.set_ylabel('Theta phase', fontsize=fontsize)
+    # #activity colorba
+    ax.set_ylim(np.pi, 5*np.pi) #start from np.pi since we want to make MUA trough as 0 degree, previous is 180 degree
+    ax.set_yticks([np.pi, 2*np.pi, 3*np.pi, 4*np.pi, 5*np.pi])
+    ax.set_yticklabels([r'$-360$', r'$-180$', r'$0$', r'$180$', r'$360$'], fontsize=fontsize)   
+    ax.set_title('Towards', fontsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+
+    # Create line in data coordinates, then map to bin coordinates
+    x_line = np.linspace(xedges_filtered.min(), xedges_filtered.max(), 100)  # bin indices
+    x_data = np.linspace(Dist2G_decreasing.min(), Dist2G_decreasing.max(), 100)  # corresponding data values
+
+    y_fitted = np.mod(slope_decreasing * x_line - 0, 8 * np.pi)
+
+    ax.plot(x_line[::-1], y_fitted, 'k', linewidth=4, alpha=0.8)
+    ax.plot(x_line[::-1], y_fitted - 2 * np.pi, 'k', linewidth=4, alpha=0.8)
+    ax.plot(x_line[::-1], y_fitted - 4 * np.pi, 'k', linewidth=4, alpha=0.8)
+
+
+    #------------------------------- ------------------------------------- --------------------------------- ------------------------------------      
+    fontsize = 20
+    ax = plt.subplot(gs[1])
+
+    # Wrap phase by duplicating with +2π to handle circularity
+    SpikePhase_wrapped = np.concatenate([SpikePhase_increasing, SpikePhase_increasing + 2 * np.pi, SpikePhase_increasing + 4*np.pi]) 
+    Dist2G_wrapped = np.concatenate([Dist2G_increasing, Dist2G_increasing, Dist2G_increasing])
+    # Compute 2D histogram
+    heatmap, xedges, yedges = np.histogram2d(Dist2G_wrapped, SpikePhase_wrapped, bins=[n_bins, n_bins])
+    # Smooth with Gaussian filter
+    heatmap_smooth = gaussian_filter(heatmap, sigma=4)
+    sum_heatmap = np.sum(heatmap_smooth, axis=1)
+    valid_x_indices = sum_heatmap > 0.5 * np.max(sum_heatmap)
+    # Apply column filter
+    heatmap_smooth_4_plot = heatmap_smooth[valid_x_indices, :]
+
+    # Adjust xedges and X accordingly
+    xedges_filtered = xedges[:-1][valid_x_indices]  # remove last bin edge, select valid
+    xedges_filtered = np.append(xedges_filtered, xedges_filtered[-1] + np.diff(xedges).mean())  # match dimension
+
+    # Create matching meshgrid
+    X, Y = np.meshgrid(xedges_filtered, yedges)
+
+    # Plot
+    pcm = ax.pcolormesh(X, Y, heatmap_smooth_4_plot.T, shading='auto', cmap='jet')
+
+    width = xedges_filtered.max() - xedges_filtered.min()
+    xmin = xedges_filtered.min() + 0.0 * width
+    xmax = xedges_filtered.max() - 0.0 * width
+        
+    # ax.set_ylabel('Theta phase', fontsize=fontsize)
+    ax.set_ylim(np.pi, 5*np.pi)  #start from np.pi since we want to make MUA trough as 0 degree, previous is 180 degree
+    ax.set_yticks([np.pi, 2*np.pi, 3*np.pi, 4*np.pi, 5*np.pi]) 
+    ax.set_yticklabels(["", "", "", "", ""])
+    ax.set_title('Away', fontsize=fontsize)
+    #tickfontsize as 6
+    ax.tick_params(axis='both', which='major', labelsize=8)
+
+    # Create line in data coordinates, then map to bin coordinates
+    x_line = np.linspace(xedges_filtered.min(), xedges_filtered.max(), 100)  # bin indices
+    x_data = np.linspace(Dist2G_increasing.min(), Dist2G_increasing.max(), 100)  # corresponding data values
+
+    y_fitted = np.mod(slope_increasing * x_line + 0, 8 * np.pi)
+
+    ax.plot(x_line, y_fitted, 'k', linewidth=4, alpha=0.8)
+    ax.plot(x_line, y_fitted + 2 * np.pi, 'k', linewidth=4, alpha=0.8)
+    ax.plot(x_line, y_fitted + 4 * np.pi, 'k', linewidth=4, alpha=0.8)
+
+    ax.set_xticklabels(['Close\nto\ngoal', 'Far\nfrom\ngoal'], fontsize=fontsize)
+    ax.set_xticks([xmin, xmax])
+
+    plt.tight_layout()
+
+    plt.show()
+    

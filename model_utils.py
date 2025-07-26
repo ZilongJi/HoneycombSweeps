@@ -1,7 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple, Any
 
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.signal import find_peaks
 
 import brainpy.math as bm
 
@@ -9,6 +10,7 @@ from models import (
     HD_cell_L1, 
     PC_cell_L2, 
 )
+from CircularLinearReg.core import cl_regression
 
 
 def simulate_honeycomb_movement(
@@ -410,4 +412,373 @@ def run_model(
         theta_rhythm,
         rotation_phase,
         rotation_direction_flag_all,
+    )
+
+
+def retrieve_sweep_statistics(
+    results: Tuple[Any], 
+    start_ind: int, 
+    end_ind: int, 
+    goal_loc: List[float] = [0.5 * np.pi, 0.5 * np.pi],
+):
+    (
+        animal_centre_all,
+        animal_head_loc_all,
+        hd_all,
+        md_all,
+        gd_all,
+        speed_all,
+        velocity_all,
+        pc_activity,
+        hd_activity,
+        pc_bump_center,
+        hd_bump_center,
+        t_upsampled,
+        theta_phase,
+        theta_rhythm,
+        rotation_phase,
+        rotation_direction_flag_all,
+    ) = results
+    
+    z_max = np.pi
+    
+    peaks, _ = find_peaks(theta_phase)
+    peaks -= 50
+    
+    Angle_at_zeroPhase = []
+    BumpAngle_2_goal = [] #same dimension as Angle_at_zeroPhase
+    BumpAngle_2_MD = []
+    BumpAngle_2_HD = []
+
+    BumpAngle_at_all_phase = []
+    BumpDist_2_pos = []
+    SweepLength = []
+    InitOffsetAngle2goal = []
+    InitOffsetDist = []
+    InitOffsetAngle2md = []
+    
+    for i in range(len(peaks)-1):
+        #calculate the vector from the Position to the goal location
+        vec = np.array([goal_loc[0] - animal_head_loc_all[peaks[i], 0], goal_loc[1] - animal_head_loc_all[peaks[i], 1]])
+        #calculate the angle between vec and moving direction
+        angle = np.arctan2(vec[1], vec[0]) - np.arctan2(velocity_all[peaks[i], 1], velocity_all[peaks[i], 0])
+        angle = np.degrees(angle) % 360
+        Angle_at_zeroPhase.append(angle)
+        
+        bumpTraj_in_Acycle = pc_bump_center[peaks[i]:peaks[i+1], :]       #/num * z_max
+        
+        #using 20th point as initial offset
+        init_offset_loc = bumpTraj_in_Acycle[start_ind,:]
+        #calculate the vect from offset loc to position 
+        init_offset_vec = np.array([init_offset_loc[0] - animal_head_loc_all[peaks[i]+start_ind, 0], init_offset_loc[1] - animal_head_loc_all[peaks[i]+start_ind, 1]])
+        #init offset dist
+        int_offset_dist = np.linalg.norm(init_offset_vec)
+        InitOffsetDist.append(int_offset_dist)
+        
+        #calculate the angle between offset_vec and direction to goal
+        init_offset_angle = np.arctan2(init_offset_vec[1], init_offset_vec[0]) - np.arctan2(vec[1], vec[0])
+        #wrap to 0-360
+        init_offset_angle = np.degrees(init_offset_angle) % 360
+        #change to radians
+        init_offset_angle = np.radians(init_offset_angle)
+        #append to InitOffsetAngle2goal
+        InitOffsetAngle2goal.append(init_offset_angle)
+        
+        #calculate the angle between offset_vec and moving direction
+        init_offset_angle2md = np.arctan2(init_offset_vec[1], init_offset_vec[0]) - np.arctan2(velocity_all[peaks[i], 1], velocity_all[peaks[i], 0])
+        #wrap to 0-360
+        init_offset_angle2md = np.degrees(init_offset_angle2md) % 360
+        #chnage to radians
+        init_offset_angle2md = np.radians(init_offset_angle2md)
+        InitOffsetAngle2md.append(init_offset_angle2md)    
+            
+        # sweep_length = np.linalg.norm(bumpTraj_in_Acycle[start,:] - bumpTraj_in_Acycle[end,:])
+        # sweep_length = np.linalg.norm(Animal_location_all[peaks[i], :] - bumpTraj_in_Acycle[end,:])
+        
+        # start_point = bumpTraj_in_Acycle[start, :]
+        # # start_point = Animal_location_all[peaks[i], :]
+        # distances = np.linalg.norm(bumpTraj_in_Acycle - start_point, axis=1)
+        # sweep_length = np.max(distances)
+
+        pos_in_Acycle = animal_head_loc_all[peaks[i]:peaks[i+1], :]
+        # start_point = Animal_location_all[peaks[i], :]
+        distances = np.linalg.norm(bumpTraj_in_Acycle - pos_in_Acycle, axis=1)
+        sweep_length = np.max(distances) - np.min(distances)  # Calculate the range of distances
+        
+        SweepLength.append(sweep_length)
+        
+        BumpAngle = []
+        BumpDist = []
+        
+        # for j in range(len(bumpTraj_in_Acycle)):
+        for j in range(start_ind, end_ind):
+            pos2goal_vec = np.array([goal_loc[0] - pos_in_Acycle[j, 0], goal_loc[1] - pos_in_Acycle[j, 1]])
+            #calculate sweep direction relative to position
+            vec2 = np.array([bumpTraj_in_Acycle[j, 0] - pos_in_Acycle[j, 0], bumpTraj_in_Acycle[j, 1] - pos_in_Acycle[j, 1]])
+            # Calculate sweep angle relative to goal
+            angle2 = np.arctan2(vec2[1], vec2[0]) - np.arctan2(pos2goal_vec[1], pos2goal_vec[0])
+            angle2 = np.degrees(angle2) % 360
+            angle2 = np.radians(angle2)  # Convert to radians
+            BumpAngle_2_goal.append(angle2)
+            
+            #calculate the angle between sweeps and moving direction
+            angle3 = np.arctan2(vec2[1], vec2[0]) - np.arctan2(velocity_all[peaks[i]+j, 1], velocity_all[peaks[i]+j, 0])
+            angle3 = np.degrees(angle3) % 360
+            BumpAngle.append(angle3)
+            angle3 = np.radians(angle3)  # Convert to radians
+            BumpAngle_2_MD.append(angle3)
+            
+            #calculate the angle betweens sweeps and head direction
+            HD_vec = np.array([np.cos(hd_all[peaks[i]+j]), np.sin(hd_all[peaks[i]+j])])
+            angle4 = np.arctan2(vec2[1], vec2[0]) - np.arctan2(HD_vec[1], HD_vec[0])
+            angle4 = np.degrees(angle4) % 360
+            angle4 = np.radians(angle4)  # Convert to radians
+            BumpAngle_2_HD.append(angle4)
+            
+            #calculate bump distance to the position
+            dist = np.linalg.norm(vec2)
+            # dist = np.where(dist > 0.5, 1.0 - dist, dist)
+            BumpDist.append(dist)
+            
+        BumpAngle_at_all_phase.append(BumpAngle)
+        BumpDist_2_pos.append(BumpDist)
+        
+    return (
+        np.array(BumpAngle_2_goal), 
+        np.array(BumpAngle_2_MD), 
+        np.array(BumpAngle_2_HD), 
+        np.array(InitOffsetAngle2goal), 
+        np.array(InitOffsetDist), 
+        np.array(Angle_at_zeroPhase),
+        np.array(InitOffsetAngle2md), 
+        np.array(SweepLength), 
+    )
+
+
+def find_periods(Position, goal_loc, threshold=1000):
+    """
+    Finds continuous periods where the distance to goal_loc is either decreasing or increasing 
+    for at least `threshold` points.
+
+    Parameters:
+    - Position (ndarray): Array of positions (Nx2 or Nx3 for 2D or 3D positions).
+    - goal_loc (ndarray): Goal location as an array (2D or 3D).
+    - threshold (int): Minimum length of a continuous period to consider.
+
+    Returns:
+    - decreasing_periods (list): List of tuples (start_index, end_index) for valid decreasing periods.
+    - increasing_periods (list): List of tuples (start_index, end_index) for valid increasing periods.
+    """
+    decreasing_periods = []
+    increasing_periods = []
+    current_start = None
+    decreasing_count = 0
+    increasing_count = 0
+    mode = None  # Tracks whether we're in a decreasing or increasing phase
+
+    for i in range(1, len(Position)):
+        dist_prev = np.linalg.norm(Position[i-1] - goal_loc)
+        dist_curr = np.linalg.norm(Position[i] - goal_loc)
+
+        if dist_curr < dist_prev:  # Distance is decreasing
+            if mode != "decreasing":
+                # End previous increasing period
+                if increasing_count >= threshold:
+                    increasing_periods.append((current_start, current_start + increasing_count))
+                current_start = i - 1
+                increasing_count = 0
+                mode = "decreasing"
+            decreasing_count += 1
+        elif dist_curr > dist_prev:  # Distance is increasing
+            if mode != "increasing":
+                # End previous decreasing period
+                if decreasing_count >= threshold:
+                    decreasing_periods.append((current_start, current_start + decreasing_count))
+                current_start = i - 1
+                decreasing_count = 0
+                mode = "increasing"
+            increasing_count += 1
+        else:
+            # Distance is constant or ambiguous, reset counters and handle ending periods
+            if mode == "decreasing" and decreasing_count >= threshold:
+                decreasing_periods.append((current_start, current_start + decreasing_count))
+            elif mode == "increasing" and increasing_count >= threshold:
+                increasing_periods.append((current_start, current_start + increasing_count))
+            current_start = None
+            decreasing_count = 0
+            increasing_count = 0
+            mode = None
+
+    # Final check after the loop ends
+    if mode == "decreasing" and decreasing_count >= threshold:
+        decreasing_periods.append((current_start, current_start + decreasing_count))
+    elif mode == "increasing" and increasing_count >= threshold:
+        increasing_periods.append((current_start, current_start + increasing_count))
+
+    return decreasing_periods, increasing_periods
+
+
+def restrict_periods_to_field(periods, positions, cx, cy, radius, min_length=10):
+    """
+    From each (start, end) period, extract all subsegments where position stays inside circle.
+
+    Parameters
+    ----------
+    periods : list of (start, end)
+    positions : (N, 2) array
+    cx, cy : float
+        Centre of the circle
+    radius : float
+        Radius of the field
+    min_length : int
+        Minimum duration (in samples) for a subperiod to keep
+
+    Returns
+    -------
+    restricted_periods : list of (sub_start, sub_end)
+    """
+    restricted = []
+
+    for start, end in periods:
+        segment = positions[start:end+1]
+        dists = np.sqrt((segment[:, 0] - cx) ** 2 + (segment[:, 1] - cy) ** 2)
+        inside = dists <= radius
+
+        # Find continuous chunks where inside == True
+        i = 0
+        while i < len(inside):
+            if inside[i]:
+                sub_start = i
+                while i < len(inside) and inside[i]:
+                    i += 1
+                sub_end = i - 1
+                if (sub_end - sub_start + 1) >= min_length:
+                    restricted.append((start + sub_start, start + sub_end))
+            else:
+                i += 1
+
+    return restricted
+
+
+def retrieve_phase_precession_results(
+    results: Tuple[Any], 
+    start_ind: int = 22, 
+    end_ind: int = 28, 
+    goal_loc: List[float] = [0.5 * np.pi, 0.5 * np.pi],
+    cellindex: List[int] = [25, 25], 
+):
+    (
+        animal_centre_all,
+        animal_head_loc_all,
+        hd_all,
+        md_all,
+        gd_all,
+        speed_all,
+        velocity_all,
+        pc_activity,
+        hd_activity,
+        pc_bump_center,
+        hd_bump_center,
+        t_upsampled,
+        theta_phase,
+        theta_rhythm,
+        rotation_phase,
+        rotation_direction_flag_all,
+    ) = results
+    
+    # Example usage:
+    decreasing_periods, increasing_periods = find_periods(animal_head_loc_all, goal_loc, threshold=300)
+
+    Dist2G_decreasing = []
+    SpikePhase_decreasing = []
+
+    Dist2G_increasing = []
+    SpikePhase_increasing = []
+
+    for cellindex_x in range(start_ind, end_ind + 1, 1):
+        for cellindex_y in range(start_ind, end_ind + 1, 1):
+            print(f"Processing cell index: ({cellindex_x}, {cellindex_y})")
+            
+            Dist2G = []
+            SpikePhase = []
+            r = pc_activity[:, cellindex[0], cellindex[1]]
+            
+            spikes = np.random.poisson(r/10)  # Convert to spikes per second
+            
+            for start, end in decreasing_periods:
+                for i in range(start, end):
+                    #get the distance to goal_loc
+                    dist_i = np.linalg.norm(animal_head_loc_all[i] - goal_loc)
+                    #get the phase at current time step i
+                    phase_i = theta_phase[i]*np.pi*2
+
+                    spike = spikes[i]
+                    if spike > 0:
+                        #save dist_i and phase_i
+                        Dist2G.append(dist_i)
+                        SpikePhase.append(phase_i)
+
+            Dist2G = np.asarray(Dist2G)
+            #normalize Dist2G to [0, 1]
+            # Dist2G = (Dist2G - Dist2G.min()) / (Dist2G.max() - Dist2G.min())
+            SpikePhase = np.asarray(SpikePhase)       
+            
+            Dist2G_decreasing.extend(Dist2G)
+            SpikePhase_decreasing.extend(SpikePhase)
+            
+            #------------------------------------------------------------------------
+            #now get spikephase during increasing_periods_field
+            Dist2G = []
+            SpikePhase = []
+            
+            for start, end in increasing_periods:
+                for i in range(start, end):
+                    #get the distance to goal_loc
+                    dist_i = np.linalg.norm(animal_head_loc_all[i] - goal_loc)
+                    #get the phase at current time step i
+                    phase_i = theta_phase[i]*np.pi*2
+                    spike = spikes[i]
+                    if spike > 0:
+                        #save dist_i and phase_i
+                        Dist2G.append(dist_i)
+                        SpikePhase.append(phase_i)
+
+            Dist2G = np.asarray(Dist2G)
+            #normalize Dist2G to [0, 1]
+            # Dist2G = (Dist2G - Dist2G.min()) / (Dist2G.max() - Dist2G.min())
+            SpikePhase = np.asarray(SpikePhase)
+            
+            Dist2G_increasing.extend(Dist2G)
+            SpikePhase_increasing.extend(SpikePhase)
+
+    SpikePhase_decreasing = np.asarray(SpikePhase_decreasing)
+    SpikePhase_increasing = np.asarray(SpikePhase_increasing)
+    Dist2G_decreasing = np.asarray(Dist2G_decreasing)
+    Dist2G_increasing = np.asarray(Dist2G_increasing)
+
+    phi_decreasing, slope_decreasing, R_decreasing = cl_regression(
+        Dist2G_decreasing, 
+        SpikePhase_decreasing, 
+        min_slope=-10, 
+        max_slope=10, 
+    )
+
+    phi_increasing, slope_increasing, R_increasing = cl_regression(
+        Dist2G_increasing, 
+        SpikePhase_increasing, 
+        min_slope=-10, 
+        max_slope=10, 
+    )
+    
+    return (
+        SpikePhase_decreasing, 
+        SpikePhase_increasing, 
+        Dist2G_decreasing, 
+        Dist2G_increasing, 
+        phi_decreasing, 
+        slope_decreasing, 
+        R_decreasing, 
+        phi_increasing, 
+        slope_increasing, 
+        R_increasing, 
     )
