@@ -114,16 +114,10 @@ def compute_smoothed_movement_direction(
     vy_smooth = np.concatenate(([vy_smooth[0]], vy_smooth))
 
     # Compute speed and heading
-    speed = np.sqrt(vx_smooth**2 + vy_smooth**2)
-    movement_direction = np.rad2deg(np.arctan2(vy_smooth, vx_smooth))
 
-    # Set heading to NaN when speed is too low
-    # movement_direction[speed < min_speed] = np.nan
-
-    # Convert to [0, 360) range
-    movement_direction = (movement_direction + 360) % 360
+    movement_direction = np.arctan2(vy_smooth, vx_smooth)
     
-    return np.deg2rad(movement_direction)
+    return movement_direction
 
 
 def load_running_gaps_mat(
