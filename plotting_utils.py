@@ -6,10 +6,11 @@ from scipy import stats
 
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from matplotlib.patches import Wedge
+from matplotlib.patches import Wedge, Polygon
 from matplotlib.colors import Normalize
 from matplotlib.cm import get_cmap
 import matplotlib.gridspec as gridspec
+
 
 
 def plot_circular_histogram(
@@ -175,6 +176,7 @@ def plot_circular_histogram_with_values(
     mean_direction: Optional[float] = None, 
     show_dir_bins: bool = True, 
     alpha=0.8, 
+    show_rlabels: bool = True, 
     **kwargs, 
 ):
     """
@@ -202,7 +204,7 @@ def plot_circular_histogram_with_values(
     widths = np.diff(bins)
     
     if normalize:
-        values = counts / np.sum(counts)
+        counts = counts / np.max(counts)
     
     bars = ax.bar(bins[:-1], counts, zorder=1, align='edge', width=widths, color=COLORS["bars"],
                   edgecolor=COLORS["edge"], fill=True, linewidth=0.5, alpha=0.7)
@@ -221,7 +223,10 @@ def plot_circular_histogram_with_values(
     ax.set_rticks(rticks)
     
     # Format the rtick labels
-    rlabels = ["", "", "", "", f"{max_count:.2f}"]
+    if show_rlabels:
+        rlabels = ["", "", "", "", f"{max_count:.2f}"]
+    else:
+        rlabels = ["", "", "", "", ""]
     ax.set_yticklabels(rlabels, 
                        color=COLORS['text'],
                        fontsize=fontsize)
@@ -909,4 +914,43 @@ def plot_phase_precession_wrt_nd(
     plt.tight_layout()
 
     plt.show()
+
+
+def hexagon_vertices_and_plot(
+    ax, 
+    center: np.ndarray, 
+    left_vertex: np.ndarray, 
+    linewidth: float= 1.0, 
+    edgecolor="black", 
+    alpha: float = 1.0, 
+):
+    """
+    Compute the vertices of a hexagon and add it to the given axis.
     
+    Parameters:
+    ax (matplotlib.axes.Axes): The axis to add the hexagon to.
+    center (tuple): The (x, y) coordinates of the hexagon's center.
+    left_vertex (tuple): The (x, y) coordinates of the leftmost vertex.
+    
+    Returns:
+    list: A list of (x, y) tuples representing the hexagon's vertices.
+    """
+    # Calculate the radius (distance from center to any vertex)
+    radius = np.linalg.norm(left_vertex - center)
+    
+    # Calculate the angle between the center and the left vertex
+    angle = np.arctan2(left_vertex[1] - center[1], left_vertex[0] - center[0])
+    
+    # Generate the angles for all vertices
+    angles = angle + np.arange(0, 2*np.pi, np.pi/3)
+    
+    # Calculate the coordinates of all vertices
+    vertices = center + radius * np.column_stack((np.cos(angles), np.sin(angles)))
+    
+    # Create a Polygon patch and add it to the axis
+    hexagon = Polygon(vertices, closed=True, fill=False, 
+                      linewidth=linewidth, edgecolor=edgecolor, alpha=alpha)
+    ax.add_patch(hexagon)
+    
+    # Return the list of vertex coordinates
+    return vertices.tolist()

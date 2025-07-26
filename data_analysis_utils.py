@@ -295,16 +295,23 @@ def active_scanning_behavioural(
                 
                 d_active_scanning["start_end_samples"][trial_types[i]][j] = high_direction_change_all_samples
                 
-                non_active_periods = np.setdiff1d(
-                    np.arange(samples[j].shape[0]),
-                    np.concatenate([
-                        np.arange(high_direction_change_clockwise[j][k, 0], high_direction_change_clockwise[j][k, 1] + 1)
-                        for k in range(len(high_direction_change_clockwise[j]))
-                    ] + [
-                        np.arange(high_direction_change_anticlockwise[j][k, 0], high_direction_change_anticlockwise[j][k, 1] + 1)
-                        for k in range(len(high_direction_change_anticlockwise[j]))
-                    ]),
-                )
+                active_scanning_periods_all = [
+                    np.arange(high_direction_change_clockwise[j][k, 0], high_direction_change_clockwise[j][k, 1] + 1)
+                    for k in range(len(high_direction_change_clockwise[j]))
+                ] + [
+                    np.arange(high_direction_change_anticlockwise[j][k, 0], high_direction_change_anticlockwise[j][k, 1] + 1)
+                    for k in range(len(high_direction_change_anticlockwise[j]))
+                ]
+                if len(active_scanning_periods_all) > 0:
+                    active_scanning_periods_all = np.concatenate(active_scanning_periods_all, axis=0)
+                
+                if len(active_scanning_periods_all) > 0:
+                    non_active_periods = np.setdiff1d(
+                        np.arange(samples[j].shape[0]),
+                        active_scanning_periods_all,
+                    )
+                else:
+                    non_active_periods = np.arange(samples[j].shape[0])
                 
                 non_active_periods_start_end = retrieve_continuous_subseq(
                     np.sort(non_active_periods), 
