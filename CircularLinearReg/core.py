@@ -1,7 +1,9 @@
+from typing import Optional
+
 import numpy as np
 from scipy.optimize import fminbound
 from pycircstat import rayleigh, corrcc
-from corr_cc import corr_cc, corr_cc_uniform
+from .corr_cc import corr_cc, corr_cc_uniform
 
 
 def model(x, slope, phi0):
@@ -161,3 +163,39 @@ def cl_corr(x, phase, min_slope, max_slope, ci=.05, bootstrap_iter=1000, return_
     else:
         circ_lin_corr, ci_out = corrcc(circ_x, phase, ci=ci, bootstrap_iter=bootstrap_iter)
         return circ_lin_corr, ci_out, slope, phi0, RR
+
+
+def circular_mean_resultant_vector_length(
+    x: np.ndarray, 
+    w: Optional[np.ndarray] = None, 
+    d: float = 0.0, 
+    axis: int = 0, 
+):
+    """
+    Compute mean resultant vector length for circular data
+    
+    Parameters
+    ----------
+    x: np.ndarray
+        input circular data (in radians)
+    w: Optional[np.ndarray]
+        (optional) weights for computing weighted mean
+    d: Optional[int]
+        spacing of bin centres for binned data
+    axis: int
+        axis to compute mean
+    """
+    
+    if w is None:
+        w = np.ones_like(x)
+    else:
+        assert len(w) == len(x)
+    
+    r = np.sum(w * np.exp(1j * x), axis=axis)
+    r = np.abs(r) / np.sum(w, axis=axis)
+    
+    if d != 0.0:
+        c = d / 2 / np.sin(d / 2)
+        r *= c
+    
+    return r
