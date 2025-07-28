@@ -590,6 +590,7 @@ def plot_rays(
         markersize=20, 
         markeredgecolor="black",
         markeredgewidth=1.0, 
+        zorder=10, 
     )
     
     return ax

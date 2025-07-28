@@ -153,3 +153,70 @@ def load_running_gaps_mat(
             for k in range(num_trials):
                 d[trial_types[i]][all_attributes[j]].append(data[i][0, k][j].reshape(-1, 2))
     return d
+
+
+def load_spikes_mrl_mat(load_dir: str):
+    """
+    Load spike mean resultant vector length
+    
+    Parameters
+    ----------
+    load_dir: str
+        loading directory
+    """
+    
+    if not os.path.exists(load_dir):
+        raise ValueError
+    
+    mat = loadmat(load_dir)
+    
+    d = {}
+    d["angle_bin_edges"] = mat["angleEdges"][0]
+    d["angle_bin_centres"] = mat["histBinCentres"][0]
+    
+    d["significant_cells_norm"] = {}
+    d["significant_cells_norm"]["hComb"] = np.concatenate(
+        mat["signifCellsNorm"][0, 0][0][:, 0]
+    )
+    d["significant_cells_norm"]["openF"] = np.concatenate(
+        mat["signifCellsNorm"][0, 0][1][:, 0]
+    )
+    
+    spikes_mrl = mat["mrlFocus"]
+    num_cells = spikes_mrl.shape[-1]
+    
+    d["spikes_mrl"] = {}
+    
+    for i in range(num_cells):
+        unit = spikes_mrl[0, i][0][0]
+        d["spikes_mrl"][unit] = {}
+        
+        hComb = spikes_mrl[0, i][1]
+        openF = spikes_mrl[0, i][2]
+        
+        d["spikes_mrl"][unit]["hComb"] = {}
+        d["spikes_mrl"][unit]["openF"] = {}
+        
+        if np.size(hComb) > 0:
+            hComb = hComb[0, 0]
+            
+            all_attributes = np.array(list(np.dtype(hComb.dtype).names))
+            for j in range(len(all_attributes)):
+                d["spikes_mrl"][unit]["hComb"][all_attributes[j]] = {}
+                mrl_attributes = np.array(list(np.dtype(hComb[j].dtype).names))
+                for k in range(len(mrl_attributes)):
+                    d["spikes_mrl"][unit]["hComb"][all_attributes[j]][mrl_attributes[k]] = \
+                        hComb[j][0, 0][k]
+        
+        if np.size(openF) > 0:
+            openF = openF[0, 0]
+            
+            all_attributes = np.array(list(np.dtype(openF.dtype).names))
+            for j in range(len(all_attributes)):
+                d["spikes_mrl"][unit]["openF"][all_attributes[j]] = {}
+                mrl_attributes = np.array(list(np.dtype(openF[j].dtype).names))
+                for k in range(len(mrl_attributes)):
+                    d["spikes_mrl"][unit]["openF"][all_attributes[j]][mrl_attributes[k]] = \
+                        openF[j][0, 0][k]
+    
+    return d
